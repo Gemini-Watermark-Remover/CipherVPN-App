@@ -19,78 +19,106 @@ class ProxyVpnService : VpnService() {
         const val ACTION_DISCONNECT = "com.cipher.vpn.DISCONNECT"
         const val PROXY_HOST = "76.13.59.198"
         const val PROXY_PORT = 8899
+        private const val TAG = "ProxyVpnService"
+        private const val CHANNEL_ID = "CipherVpnChannel"
+        private const val NOTIFICATION_ID = 1
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_CONNECT -> connectVpn()
-            ACTION_DISCONNECT -> disconnectVpn()
+        return when (intent?.action) {
+            ACTION_CONNECT -> {
+                connectVpn()
+                START_STICKY
+            }
+            ACTION_DISCONNECT -> {
+                disconnectVpn()
+                START_NOT_STICKY
+            }
+            else -> START_NOT_STICKY
         }
-        return START_NOT_STICKY
     }
 
     private fun connectVpn() {
-        if (vpnInterface != null) return
+        if (vpnInterface != null) {
+            Log.d(TAG, "Already connected")
+            return
+        }
 
-        startForegroundNotification()
+        // Must show notification FIRST before doing VPN work
+        showForegroundNotification()
 
         try {
             val builder = Builder()
 
-            // Define the VPN interface parameters
+            // Minimal VPN interface — just an address, no routes
+            // This avoids blackholing traffic since we have no packet forwarder
             builder.addAddress("10.0.0.2", 32)
-            builder.addRoute("0.0.0.0", 0) // Route all traffic through the VPN
             builder.addDnsServer("8.8.8.8")
             builder.addDnsServer("1.1.1.1")
 
-            // Set the HTTP Proxy (Requires API 29+)
+            // Set the HTTP proxy so apps route HTTP traffic through our VPS
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val proxyInfo = ProxyInfo.buildDirectProxy(PROXY_HOST, PROXY_PORT)
                 builder.setHttpProxy(proxyInfo)
-                Log.d("ProxyVpnService", "HTTP Proxy set to $PROXY_HOST:$PROXY_PORT")
-            } else {
-                Log.e("ProxyVpnService", "setHttpProxy requires API >= 29")
+                Log.d(TAG, "HTTP Proxy set to $PROXY_HOST:$PROXY_PORT")
             }
 
             builder.setSession("CipherVPN")
-            // Note: setConfigureIntent is optional, skipping it entirely
+            builder.setMtu(1500)
 
-            vpnInterface = builder.establish()
-            Log.d("ProxyVpnService", "VPN Established")
+            // Allow the proxy server to bypass the VPN
+            // This prevents a routing loop where proxy traffic gets captured by VPN
+            builder.addRoute("10.0.0.0", 8)
+
+            val iface = builder.establish()
+            if (iface == null) {
+                Log.e(TAG, "establish() returned null — VPN permission not granted?")
+                stopSelf()
+                return
+            }
+
+            vpnInterface = iface
+            Log.d(TAG, "VPN established successfully")
+
         } catch (e: Exception) {
-            Log.e("ProxyVpnService", "Error starting VPN", e)
+            Log.e(TAG, "Error starting VPN", e)
             disconnectVpn()
         }
     }
 
     private fun disconnectVpn() {
-        vpnInterface?.close()
+        try {
+            vpnInterface?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing VPN interface", e)
+        }
         vpnInterface = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
-        Log.d("ProxyVpnService", "VPN Disconnected")
+        Log.d(TAG, "VPN disconnected")
     }
 
-    private fun startForegroundNotification() {
-        val channelId = "CipherVpnChannel"
-
+    private fun showForegroundNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId,
+                CHANNEL_ID,
                 "CipherVPN Status",
                 NotificationManager.IMPORTANCE_LOW
-            )
+            ).apply {
+                description = "Shows when CipherVPN is active"
+            }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
 
-        val notification = NotificationCompat.Builder(this, channelId)
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("CipherVPN is Active")
             .setContentText("Your traffic is being routed securely.")
             .setSmallIcon(android.R.drawable.ic_secure)
+            .setOngoing(true)
             .build()
 
-        startForeground(1, notification)
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     override fun onDestroy() {

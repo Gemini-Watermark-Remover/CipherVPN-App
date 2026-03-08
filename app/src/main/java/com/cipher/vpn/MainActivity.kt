@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -15,6 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import okhttp3.Call
 import okhttp3.Callback
@@ -25,6 +27,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -34,9 +37,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serverSpinner: Spinner
 
     private var isConnected = false
-    private val httpClient = OkHttpClient()
+
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     private val apiUrl = "http://76.13.59.198:5000"
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -58,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         serverSpinner = findViewById(R.id.serverSpinner)
 
         setupSpinner()
-        checkServerStatus()
+        fetchIpAddress()
 
         powerButton.setOnClickListener {
             toggleConnection()
@@ -94,35 +105,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectVpn() {
-        Log.d("MainActivity", "Attempting connection")
-        val intent = VpnService.prepare(this)
-        if (intent != null) {
-            vpnPermissionLauncher.launch(intent)
-        } else {
-            startProxyVpn()
+        Log.d(TAG, "Attempting connection")
+        try {
+            val intent = VpnService.prepare(this)
+            if (intent != null) {
+                vpnPermissionLauncher.launch(intent)
+            } else {
+                // Permission already granted
+                startProxyVpn()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing VPN", e)
+            Toast.makeText(this, "VPN Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun startProxyVpn() {
-        val serviceIntent = Intent(this, ProxyVpnService::class.java)
-        serviceIntent.action = ProxyVpnService.ACTION_CONNECT
-        startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, ProxyVpnService::class.java)
+            serviceIntent.action = ProxyVpnService.ACTION_CONNECT
+            ContextCompat.startForegroundService(this, serviceIntent)
 
-        val location = serverSpinner.selectedItem.toString()
-        changeNordVpnLocation(location)
+            val location = serverSpinner.selectedItem.toString()
+            changeNordVpnLocation(location)
 
-        updateUI(true)
+            updateUI(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting VPN service", e)
+            Toast.makeText(this, "Failed to start VPN: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun disconnectVpn() {
-        Log.d("MainActivity", "Disconnecting")
-
-        val serviceIntent = Intent(this, ProxyVpnService::class.java)
-        serviceIntent.action = ProxyVpnService.ACTION_DISCONNECT
-        startService(serviceIntent)
+        Log.d(TAG, "Disconnecting")
+        try {
+            val serviceIntent = Intent(this, ProxyVpnService::class.java)
+            serviceIntent.action = ProxyVpnService.ACTION_DISCONNECT
+            startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping VPN service", e)
+        }
 
         sendApiRequest("/disconnect", "POST", "") {}
-
         updateUI(false)
     }
 
@@ -133,7 +157,8 @@ class MainActivity : AppCompatActivity() {
                 powerButton.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#10B981"))
                 statusText.text = getString(R.string.status_connected)
                 statusText.setTextColor(Color.parseColor("#10B981"))
-                fetchIpAddress()
+                // Delay IP fetch slightly to let VPN establish
+                powerButton.postDelayed({ fetchIpAddress() }, 2000)
             } else {
                 powerButton.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#1E293B"))
                 statusText.text = getString(R.string.status_disconnected)
@@ -161,26 +186,9 @@ class MainActivity : AppCompatActivity() {
 
         val json = "{\"country\":\"$countryCode\"}"
         sendApiRequest("/connect", "POST", json) {
+            // Wait for NordVPN to connect before fetching IP
+            Thread.sleep(3000)
             fetchIpAddress()
-        }
-    }
-
-    private fun checkServerStatus() {
-        sendApiRequest("/status", "GET", "") { json ->
-            try {
-                val obj = JSONObject(json)
-                val vpnStatus = obj.optString("vpn_status")
-                val isPtp = obj.optBoolean("point_to_point_active")
-                runOnUiThread {
-                    if (isPtp) {
-                        Log.d("MainActivity", "NordVPN proxy is up: $vpnStatus")
-                    } else {
-                        Log.d("MainActivity", "NordVPN proxy is down (VPS Direct Mode)")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "JSON Parse error on status", e)
-            }
         }
     }
 
@@ -191,6 +199,7 @@ class MainActivity : AppCompatActivity() {
 
         httpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                Log.e(TAG, "IP fetch failed", e)
                 runOnUiThread { ipAddressText.text = "IP: Error" }
             }
             override fun onResponse(call: Call, response: Response) {
@@ -219,15 +228,12 @@ class MainActivity : AppCompatActivity() {
         val request = requestBuilder.build()
         httpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("API", "Request failed to $endpoint", e)
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "VPS API Error", Toast.LENGTH_SHORT).show()
-                }
+                Log.e(TAG, "API request failed: $endpoint", e)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val respBody = response.body?.string() ?: ""
-                Log.d("API", "Response from $endpoint: $respBody")
+                Log.d(TAG, "API response from $endpoint: $respBody")
                 onResponse(respBody)
             }
         })
