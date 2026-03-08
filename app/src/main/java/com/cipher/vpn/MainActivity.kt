@@ -95,7 +95,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun connectVpn() {
         Log.d("MainActivity", "Attempting connection")
-        // Start Android VPN machinery
         val intent = VpnService.prepare(this)
         if (intent != null) {
             vpnPermissionLauncher.launch(intent)
@@ -105,27 +104,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startProxyVpn() {
-        val intent = Intent(this, ProxyVpnService::class.java).apply {
-            action = ProxyVpnService.ACTION_CONNECT
-        }
-        startService(intent)
-        
-        // Also tell VPS to connect to chosen country if needed
+        val serviceIntent = Intent(this, ProxyVpnService::class.java)
+        serviceIntent.action = ProxyVpnService.ACTION_CONNECT
+        startService(serviceIntent)
+
         val location = serverSpinner.selectedItem.toString()
         changeNordVpnLocation(location)
-        
+
         updateUI(true)
     }
 
     private fun disconnectVpn() {
         Log.d("MainActivity", "Disconnecting")
-        
-        val intent = Intent(this, ProxyVpnService::class.java).apply {
-            action = ProxyVpnService.ACTION_DISCONNECT
-        }
-        startService(intent)
 
-        // Tell VPS to drop NordVPN proxy routing and revert to direct Squid
+        val serviceIntent = Intent(this, ProxyVpnService::class.java)
+        serviceIntent.action = ProxyVpnService.ACTION_DISCONNECT
+        startService(serviceIntent)
+
         sendApiRequest("/disconnect", "POST", "") {}
 
         updateUI(false)
@@ -154,17 +149,17 @@ class MainActivity : AppCompatActivity() {
             "United Kingdom" -> "uk"
             "Germany" -> "de"
             "Japan" -> "jp"
-            else -> "fr" // Default to France
+            else -> "fr"
         }
 
-        if (countryCode == "fr" && locationName == "France (VPS Direct)") {
-             sendApiRequest("/disconnect", "POST", "") {
-                 fetchIpAddress()
-             }
-             return
+        if (locationName == "France (VPS Direct)") {
+            sendApiRequest("/disconnect", "POST", "") {
+                fetchIpAddress()
+            }
+            return
         }
 
-        val json = """{"country":"$countryCode"}"""
+        val json = "{\"country\":\"$countryCode\"}"
         sendApiRequest("/connect", "POST", json) {
             fetchIpAddress()
         }
@@ -174,11 +169,11 @@ class MainActivity : AppCompatActivity() {
         sendApiRequest("/status", "GET", "") { json ->
             try {
                 val obj = JSONObject(json)
-                val status = obj.optString("vpn_status")
+                val vpnStatus = obj.optString("vpn_status")
                 val isPtp = obj.optBoolean("point_to_point_active")
                 runOnUiThread {
                     if (isPtp) {
-                        Log.d("MainActivity", "NordVPN proxy is up: \$status")
+                        Log.d("MainActivity", "NordVPN proxy is up: $vpnStatus")
                     } else {
                         Log.d("MainActivity", "NordVPN proxy is down (VPS Direct Mode)")
                     }
@@ -190,21 +185,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchIpAddress() {
-        // Simple call to check what IP we are presenting via the VPN proxy
-        // This request will be routed through the VPN if it's running
         val request = Request.Builder()
             .url("https://api.ipify.org?format=json")
             .build()
-        
+
         httpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread { ipAddressText.text = "IP: Error" }
             }
             override fun onResponse(call: Call, response: Response) {
-                response.body?.string()?.let {
+                val bodyStr = response.body?.string()
+                if (bodyStr != null) {
                     try {
-                        val ip = JSONObject(it).getString("ip")
-                        runOnUiThread { ipAddressText.text = "IP: \$ip" }
+                        val ip = JSONObject(bodyStr).getString("ip")
+                        runOnUiThread { ipAddressText.text = "IP: $ip" }
                     } catch (e: Exception) {
                         runOnUiThread { ipAddressText.text = "IP: Unknown" }
                     }
@@ -214,26 +208,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendApiRequest(endpoint: String, method: String, jsonBody: String, onResponse: (String) -> Unit) {
-        val url = "$apiUrl$endpoint"
-        val builder = Request.Builder().url(url)
-        
+        val url = apiUrl + endpoint
+        val requestBuilder = Request.Builder().url(url)
+
         if (method == "POST") {
             val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
-            builder.post(body)
+            requestBuilder.post(body)
         }
 
-        val request = builder.build()
+        val request = requestBuilder.build()
         httpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("API", "Request failed to \$endpoint", e)
+                Log.e("API", "Request failed to $endpoint", e)
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "VPS API Error $endpoint", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "VPS API Error", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val respBody = response.body?.string() ?: ""
-                Log.d("API", "Response from \$endpoint: \$respBody")
+                Log.d("API", "Response from $endpoint: $respBody")
                 onResponse(respBody)
             }
         })

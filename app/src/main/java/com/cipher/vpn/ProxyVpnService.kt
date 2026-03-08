@@ -32,7 +32,7 @@ class ProxyVpnService : VpnService() {
     private fun connectVpn() {
         if (vpnInterface != null) return
 
-        startForegroundService()
+        startForegroundNotification()
 
         try {
             val builder = Builder()
@@ -40,6 +40,8 @@ class ProxyVpnService : VpnService() {
             // Define the VPN interface parameters
             builder.addAddress("10.0.0.2", 32)
             builder.addRoute("0.0.0.0", 0) // Route all traffic through the VPN
+            builder.addDnsServer("8.8.8.8")
+            builder.addDnsServer("1.1.1.1")
 
             // Set the HTTP Proxy (Requires API 29+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -51,7 +53,7 @@ class ProxyVpnService : VpnService() {
             }
 
             builder.setSession("CipherVPN")
-            builder.setConfigureIntent(null) // Could add an intent to reopen MainActivity
+            // Note: setConfigureIntent is optional, skipping it entirely
 
             vpnInterface = builder.establish()
             Log.d("ProxyVpnService", "VPN Established")
@@ -69,9 +71,9 @@ class ProxyVpnService : VpnService() {
         Log.d("ProxyVpnService", "VPN Disconnected")
     }
 
-    private fun startForegroundService() {
+    private fun startForegroundNotification() {
         val channelId = "CipherVpnChannel"
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
@@ -85,7 +87,6 @@ class ProxyVpnService : VpnService() {
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("CipherVPN is Active")
             .setContentText("Your traffic is being routed securely.")
-            // Ideally use your own icon here, falling back to a standard one
             .setSmallIcon(android.R.drawable.ic_secure)
             .build()
 
