@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">CipherVPN</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connected">Protected</string>
+    <string name="status_connecting">Connecting...</string>
+    
+    <string-array name="vpn_locations">
+        <item>France (VPS Direct)</item>
+        <item>United States</item>
+        <item>United Kingdom</item>
+        <item>Germany</item>
+        <item>Japan</item>
+    </string-array>
+</resources>
