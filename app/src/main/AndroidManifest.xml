@@ -25,6 +25,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CipherVpnApp" />
+
         <service
             android:name=".ProxyVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"

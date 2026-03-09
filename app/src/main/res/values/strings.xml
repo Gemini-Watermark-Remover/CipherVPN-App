@@ -7,10 +7,105 @@
     <string name="status_connecting">Connecting...</string>
     
     <string-array name="vpn_locations">
-        <item>France (VPS Direct)</item>
+        <item>⭐ Popular</item>
         <item>United States</item>
         <item>United Kingdom</item>
         <item>Germany</item>
+        <item>France (VPS Direct)</item>
         <item>Japan</item>
+        <item>Canada</item>
+        <item>Netherlands</item>
+        <item>Australia</item>
+        <item>Singapore</item>
+        <item>Switzerland</item>
+        <item>🌎 Americas</item>
+        <item>Argentina</item>
+        <item>Bahamas</item>
+        <item>Belize</item>
+        <item>Bermuda</item>
+        <item>Brazil</item>
+        <item>Chile</item>
+        <item>Colombia</item>
+        <item>Costa Rica</item>
+        <item>Dominican Republic</item>
+        <item>Ecuador</item>
+        <item>Greenland</item>
+        <item>Guatemala</item>
+        <item>Mexico</item>
+        <item>Panama</item>
+        <item>Paraguay</item>
+        <item>Peru</item>
+        <item>Puerto Rico</item>
+        <item>Trinidad And Tobago</item>
+        <item>Uruguay</item>
+        <item>Venezuela</item>
+        <item>🌍 Europe</item>
+        <item>Albania</item>
+        <item>Andorra</item>
+        <item>Austria</item>
+        <item>Belgium</item>
+        <item>Bosnia And Herzegovina</item>
+        <item>Bulgaria</item>
+        <item>Croatia</item>
+        <item>Cyprus</item>
+        <item>Czech Republic</item>
+        <item>Denmark</item>
+        <item>Estonia</item>
+        <item>Finland</item>
+        <item>Georgia</item>
+        <item>Greece</item>
+        <item>Hungary</item>
+        <item>Iceland</item>
+        <item>Ireland</item>
+        <item>Isle Of Man</item>
+        <item>Italy</item>
+        <item>Latvia</item>
+        <item>Liechtenstein</item>
+        <item>Lithuania</item>
+        <item>Luxembourg</item>
+        <item>Malta</item>
+        <item>Moldova</item>
+        <item>Monaco</item>
+        <item>Montenegro</item>
+        <item>North Macedonia</item>
+        <item>Norway</item>
+        <item>Poland</item>
+        <item>Portugal</item>
+        <item>Romania</item>
+        <item>Serbia</item>
+        <item>Slovakia</item>
+        <item>Slovenia</item>
+        <item>Spain</item>
+        <item>Sweden</item>
+        <item>Turkey</item>
+        <item>Ukraine</item>
+        <item>🌏 Asia Pacific</item>
+        <item>Bangladesh</item>
+        <item>Cambodia</item>
+        <item>Hong Kong</item>
+        <item>India</item>
+        <item>Indonesia</item>
+        <item>Laos</item>
+        <item>Malaysia</item>
+        <item>Mongolia</item>
+        <item>Myanmar</item>
+        <item>Nepal</item>
+        <item>New Zealand</item>
+        <item>Philippines</item>
+        <item>South Korea</item>
+        <item>Sri Lanka</item>
+        <item>Taiwan</item>
+        <item>Thailand</item>
+        <item>Vietnam</item>
+        <item>🌍 Middle East &amp; Africa</item>
+        <item>Algeria</item>
+        <item>Armenia</item>
+        <item>Egypt</item>
+        <item>Israel</item>
+        <item>Kenya</item>
+        <item>Morocco</item>
+        <item>Nigeria</item>
+        <item>South Africa</item>
+        <item>United Arab Emirates</item>
     </string-array>
 </resources>
