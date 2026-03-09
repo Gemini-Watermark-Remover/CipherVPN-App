@@ -89,7 +89,7 @@
                         android:popupBackground="@color/bg_secondary" />
                 </LinearLayout>
 
-                <!-- Toggles Container -->
+                <!-- Toggles Container is here -->
                 <LinearLayout
                     android:id="@+id/togglesContainer"
                     android:layout_width="match_parent"
