@@ -193,27 +193,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchIpAddress() {
-        val request = Request.Builder()
-            .url("https://api.ipify.org?format=json")
-            .build()
-
-        httpClient.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                Log.e(TAG, "IP fetch failed", e)
-                runOnUiThread { ipAddressText.text = "IP: Error" }
+        // Fetch the IP from VPS status endpoint — this shows the actual NordVPN IP
+        // that the proxy routes through, NOT the phone's own IP
+        sendApiRequest("/status", "GET", "") { json ->
+            try {
+                val obj = JSONObject(json)
+                val vpnStatus = obj.optString("vpn_status", "")
+                // Parse the IP from NordVPN status output
+                val ipRegex = Regex("IP:\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)")
+                val match = ipRegex.find(vpnStatus)
+                val ip = match?.groupValues?.get(1) ?: "Direct"
+                runOnUiThread { ipAddressText.text = "IP: $ip" }
+            } catch (e: Exception) {
+                Log.e(TAG, "IP parse failed", e)
+                runOnUiThread { ipAddressText.text = "IP: Unknown" }
             }
-            override fun onResponse(call: Call, response: Response) {
-                val bodyStr = response.body?.string()
-                if (bodyStr != null) {
-                    try {
-                        val ip = JSONObject(bodyStr).getString("ip")
-                        runOnUiThread { ipAddressText.text = "IP: $ip" }
-                    } catch (e: Exception) {
-                        runOnUiThread { ipAddressText.text = "IP: Unknown" }
-                    }
-                }
-            }
-        })
+        }
     }
 
     private fun sendApiRequest(endpoint: String, method: String, jsonBody: String, onResponse: (String) -> Unit) {
