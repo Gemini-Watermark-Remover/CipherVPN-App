@@ -154,17 +154,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var isFirstSelection = true
+
     private fun setupSpinner() {
         val adapter = ArrayAdapter.createFromResource(
             this,
             R.array.vpn_locations,
-            android.R.layout.simple_spinner_item
+            R.layout.spinner_item
         )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         serverSpinner.adapter = adapter
 
         serverSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (isFirstSelection) {
+                    isFirstSelection = false
+                    return
+                }
+                
                 val location = serverSpinner.selectedItem.toString()
                 if (location.startsWith("⭐") || location.startsWith("\uD83C") || location.startsWith("\uD83D")) {
                     return
@@ -198,8 +205,10 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error preparing VPN", e)
-            Toast.makeText(this, "VPN Error: ${e.message}", Toast.LENGTH_LONG).show()
-            updateUI("error")
+            runOnUiThread {
+                Toast.makeText(this, "VPN Error: ${e.message}", Toast.LENGTH_LONG).show()
+                updateUI("error")
+            }
         }
     }
 
@@ -209,7 +218,7 @@ class MainActivity : AppCompatActivity() {
             serviceIntent.action = ProxyVpnService.ACTION_CONNECT
             ContextCompat.startForegroundService(this, serviceIntent)
 
-            val location = serverSpinner.selectedItem.toString()
+            val location = serverSpinner.selectedItem?.toString() ?: "United States"
             if (!location.startsWith("⭐") && !location.startsWith("\uD83C") && !location.startsWith("\uD83D")) {
                 changeNordVpnLocation(location)
             } else {
@@ -217,8 +226,10 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error starting VPN service", e)
-            Toast.makeText(this, "Failed to start VPN: ${e.message}", Toast.LENGTH_LONG).show()
-            updateUI("error")
+            runOnUiThread {
+                Toast.makeText(this, "Failed to start VPN: ${e.message}", Toast.LENGTH_LONG).show()
+                updateUI("error")
+            }
         }
     }
 
@@ -234,13 +245,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         sendApiRequest("/connect?country=France", "GET") {
-            pollStatus(once = true)
+            runOnUiThread {
+                updateUI("disconnected")
+                finishAffinity() // Force close the app to reset state
+            }
         }
     }
 
     private fun changeNordVpnLocation(locationName: String) {
-        val cleanName = locationName.replace(" ", "_").replace("_(VPS_Direct)", "")
-        val queryParam = if (locationName.contains("France")) "France" else cleanName
+        if (locationName.isBlank()) return
+        Log.d(TAG, "Requesting connection to: $locationName")
+        
+        // Match the extension logic: grab just the country part (before the comma)
+        val countryPart = locationName.split(",")[0].trim()
+        val cleanName = countryPart.replace(" ", "_").replace("_(VPS_Direct)", "")
+        val queryParam = if (cleanName.contains("France")) "France" else cleanName
 
         sendApiRequest("/connect?country=$queryParam", "GET") {
             if (!isPollingStatus) pollStatus()
@@ -253,6 +272,8 @@ class MainActivity : AppCompatActivity() {
         
         sendApiRequest("/status", "GET") { json ->
             try {
+                if (json.isEmpty()) return@sendApiRequest
+                
                 val obj = JSONObject(json)
                 val status = obj.optString("status", "")
                 
@@ -263,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                     } else if (status == "error") {
                         updateUI("error")
                         val errCode = obj.optString("error", "Failed")
-                        Toast.makeText(this@MainActivity, "NordVPN Error: $errCode", Toast.LENGTH_LONG).show()
+                        // Toast.makeText(this@MainActivity, "NordVPN Error: $errCode", Toast.LENGTH_LONG).show() // Too noisy
                     } else if (status == "success") {
                         val vpnOn = obj.optBoolean("vpn_connected", false)
                         val ip = obj.optString("ip", "Unknown")

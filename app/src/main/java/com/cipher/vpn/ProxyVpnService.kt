@@ -93,7 +93,11 @@ class ProxyVpnService : VpnService() {
             Log.e(TAG, "Error closing VPN interface", e)
         }
         vpnInterface = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            stopForeground(true)
+        }
         stopSelf()
         Log.d(TAG, "VPN disconnected")
     }
@@ -111,10 +115,20 @@ class ProxyVpnService : VpnService() {
             manager.createNotificationChannel(channel)
         }
 
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("CipherVPN is Active")
             .setContentText("Your traffic is being routed securely.")
             .setSmallIcon(android.R.drawable.ic_secure)
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
 
