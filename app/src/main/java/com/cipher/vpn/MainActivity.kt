@@ -157,11 +157,30 @@ class MainActivity : AppCompatActivity() {
     private var isFirstSelection = true
 
     private fun setupSpinner() {
-        val adapter = ArrayAdapter.createFromResource(
-            this,
-            R.array.vpn_locations,
-            R.layout.spinner_item
-        )
+        val locations = resources.getStringArray(R.array.vpn_locations)
+        val headers = listOf("⭐ Popular", "🌎 Americas", "🌍 Europe", "🌏 Asia Pacific", "🌍 Middle East & Africa")
+        
+        val adapter = object : ArrayAdapter<String>(this, R.layout.spinner_item, locations) {
+            override fun isEnabled(position: Int): Boolean {
+                return !headers.contains(getItem(position))
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent) as TextView
+                if (headers.contains(getItem(position))) {
+                    view.setTextColor(Color.parseColor("#94A3B8")) // text_muted
+                    view.textSize = 13f
+                    view.setPadding(view.paddingLeft, 32, view.paddingRight, 16)
+                    view.isClickable = true // Prevent checkmark or ripple
+                } else {
+                    view.setTextColor(Color.parseColor("#F8FAFC")) // text_primary
+                    view.textSize = 16f
+                    view.setPadding(view.paddingLeft, 24, view.paddingRight, 24)
+                    view.isClickable = false
+                }
+                return view
+            }
+        }
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         serverSpinner.adapter = adapter
 
@@ -173,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 
                 val location = serverSpinner.selectedItem.toString()
-                if (location.startsWith("⭐") || location.startsWith("\uD83C") || location.startsWith("\uD83D")) {
+                if (headers.contains(location)) {
                     return
                 }
                 
@@ -183,6 +202,9 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+        
+        // Select United States (index 1) by default instead of ⭐ Popular (index 0)
+        serverSpinner.setSelection(1)
     }
 
     private fun toggleConnection() {
@@ -218,11 +240,12 @@ class MainActivity : AppCompatActivity() {
             serviceIntent.action = ProxyVpnService.ACTION_CONNECT
             ContextCompat.startForegroundService(this, serviceIntent)
 
-            val location = serverSpinner.selectedItem?.toString() ?: "United States"
-            if (!location.startsWith("⭐") && !location.startsWith("\uD83C") && !location.startsWith("\uD83D")) {
+            val location = serverSpinner.selectedItem?.toString() ?: "🇺🇸 United States"
+            val headers = listOf("⭐ Popular", "🌎 Americas", "🌍 Europe", "🌏 Asia Pacific", "🌍 Middle East & Africa")
+            if (!headers.contains(location)) {
                 changeNordVpnLocation(location)
             } else {
-                changeNordVpnLocation("United_States") // fallback
+                changeNordVpnLocation("🇺🇸 United States") // fallback
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error starting VPN service", e)
@@ -256,9 +279,19 @@ class MainActivity : AppCompatActivity() {
         if (locationName.isBlank()) return
         Log.d(TAG, "Requesting connection to: $locationName")
         
-        // Match the extension logic: grab just the country part (before the comma)
-        val countryPart = locationName.split(",")[0].trim()
-        val cleanName = countryPart.replace(" ", "_").replace("_(VPS_Direct)", "")
+        // Strip out the flag emoji (usually the first word separated by space)
+        val cleanLabel = if (locationName.contains(" ")) {
+            val firstWord = locationName.substringBefore(" ")
+            if (!firstWord.any { it.isLetterOrDigit() }) {
+                locationName.substringAfter(" ").trim()
+            } else {
+                locationName.trim()
+            }
+        } else {
+            locationName.trim()
+        }
+
+        val cleanName = cleanLabel.replace(" ", "_").replace("_(VPS_Direct)", "")
         val queryParam = if (cleanName.contains("France")) "France" else cleanName
 
         sendApiRequest("/connect?country=$queryParam", "GET") {
